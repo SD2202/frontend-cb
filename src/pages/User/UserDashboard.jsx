@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { User, MessageSquare, Database, ChevronRight, MapPin } from 'lucide-react';
+import { fetchComplaints } from '../../services/api';
+import { User, MessageSquare, Database, ChevronRight, MapPin, CheckCircle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const UserDashboard = () => {
     const [profile, setProfile] = useState(null);
@@ -11,10 +11,8 @@ const UserDashboard = () => {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
-    // For demo, we use a mock user ID
     const MOCK_USER_ID = "1234567890";
 
-    // Function to get IST time (GMT+5:30)
     const getISTTime = () => {
         const now = new Date();
         const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
@@ -22,7 +20,6 @@ const UserDashboard = () => {
         return ist;
     };
 
-    // Function to format date in DD-MM-YYYY format
     const formatDate = (date) => {
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -31,78 +28,62 @@ const UserDashboard = () => {
     };
 
     useEffect(() => {
-        const fetchUserData = async () => {
+        const loadUserData = async () => {
             try {
-                const [profileRes, complaintsRes, allComplaintsRes] = await Promise.all([
-                    axios.get(`http://localhost:8000/api/user/profile/${MOCK_USER_ID}`),
-                    axios.get(`http://localhost:8000/api/admin/complaints/recent`),
-                    axios.get(`http://localhost:8000/api/admin/complaints`)
-                ]);
-                setProfile(profileRes.data);
-                const recent = complaintsRes.data.slice(0, 5);
+                // Fetch only complaints for now as profile API doesn't exist
+                const complaintsData = await fetchComplaints();
+
+                // Filter for "recent" (just take last 5)
+                const recent = complaintsData.slice(0, 5).map(c => ({
+                    complaint_id: c.complaint_id,
+                    ward_number: c.ward_number || 'N/A',
+                    description: `${c.category} - ${c.sub_issue}`,
+                    status: c.status,
+                    created_at: c.created_at
+                }));
                 setRecentComplaints(recent);
 
-                // Process chart data - group by date and status
-                const complaints = allComplaintsRes.data || [];
+                // Process chart data
                 const dateMap = {};
-                
-                // Generate last 7 days
                 const dates = [];
                 for (let i = 6; i >= 0; i--) {
                     const date = new Date(getISTTime());
                     date.setDate(date.getDate() - i);
                     dates.push(formatDate(date));
                 }
-
-                // Initialize dates
                 dates.forEach(date => {
-                    dateMap[date] = { date, Pending: 0, Completed: 0, Active: 0 };
+                    dateMap[date] = { date, Pending: 0, Completed: 0 };
                 });
 
-                // Count complaints by date and status
-                complaints.forEach(complaint => {
-                    const complaintDate = formatDate(new Date(complaint.created_at || complaint.date || new Date()));
+                complaintsData.forEach(complaint => {
+                    const complaintDate = formatDate(new Date(complaint.created_at || new Date()));
                     if (dateMap[complaintDate]) {
-                        const status = complaint.status || 'Pending';
-                        if (status === 'Completed' || status === 'completed') {
+                        const status = (complaint.status || 'Pending').toLowerCase();
+                        if (status === 'completed' || status === 'resolved') {
                             dateMap[complaintDate].Completed++;
-                        } else if (status === 'Active' || status === 'active') {
-                            dateMap[complaintDate].Active++;
                         } else {
                             dateMap[complaintDate].Pending++;
                         }
                     }
                 });
-
                 setChartData(Object.values(dateMap));
+
+                // Mock profile data since backend endpoint isn't ready
+                setProfile({
+                    user_id: MOCK_USER_ID,
+                    language_preference: 'English',
+                    status: 'active'
+                });
+
             } catch (error) {
                 console.error("Error fetching user data:", error);
-                // Set default chart data if API fails
-                const dates = [];
-                for (let i = 6; i >= 0; i--) {
-                    const date = new Date(getISTTime());
-                    date.setDate(date.getDate() - i);
-                    dates.push({
-                        date: formatDate(date),
-                        Pending: Math.floor(Math.random() * 10),
-                        Completed: Math.floor(Math.random() * 10),
-                        Active: Math.floor(Math.random() * 10)
-                    });
-                }
-                setChartData(dates);
-                // Set default profile if API fails
-                if (!profile) {
-                    setProfile({
-                        user_id: MOCK_USER_ID,
-                        language_preference: 'general',
-                        status: 'active'
-                    });
-                }
             } finally {
                 setLoading(false);
             }
         };
-        fetchUserData();
+        loadUserData();
+        const interval = setInterval(loadUserData, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     return (
@@ -166,22 +147,85 @@ const UserDashboard = () => {
                 </div>
             </div>
 
-            <div className="card" style={{ marginTop: '32px', padding: '24px' }}>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--primary)', marginBottom: '20px' }}>Complaint Status Overview</h2>
-                {chartData.length > 0 && (
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" />
-                            <YAxis />
-                            <Tooltip />
-                            <Legend />
-                            <Line type="monotone" dataKey="Pending" stroke="#fbbf24" strokeWidth={2} />
-                            <Line type="monotone" dataKey="Completed" stroke="#10b981" strokeWidth={2} />
-                            <Line type="monotone" dataKey="Active" stroke="#3b82f6" strokeWidth={2} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                )}
+            <div style={{ marginTop: '32px', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+                <div className="card" style={{ padding: '24px' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--primary)', marginBottom: '24px' }}>Daily Case Resolution Performance</h2>
+                    {chartData.length > 0 && (
+                        <ResponsiveContainer width="100%" height={320}>
+                            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis
+                                    dataKey="date"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                    dy={10}
+                                />
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                    allowDecimals={false}
+                                />
+                                <Tooltip
+                                    cursor={{ fill: '#f8fafc' }}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                                />
+                                <Legend
+                                    verticalAlign="top"
+                                    align="right"
+                                    iconType="circle"
+                                    wrapperStyle={{ paddingBottom: '20px' }}
+                                />
+                                <Bar
+                                    dataKey="Completed"
+                                    stackId="a"
+                                    fill="#10b981"
+                                    radius={[0, 0, 4, 4]}
+                                    barSize={35}
+                                />
+                                <Bar
+                                    dataKey="Pending"
+                                    stackId="a"
+                                    fill="#fbbf24"
+                                    radius={[4, 4, 0, 0]}
+                                    barSize={35}
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div className="card" style={{ padding: '24px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', border: 'none', color: 'white' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <CheckCircle size={24} opacity={0.8} />
+                            <span style={{ fontSize: '0.75rem', fontWeight: '800', background: 'rgba(255,255,255,0.2)', padding: '4px 8px', borderRadius: '12px' }}>SUCCESS RATE</span>
+                        </div>
+                        <p style={{ fontSize: '2rem', fontWeight: '800' }}>
+                            {Math.round((chartData.reduce((acc, curr) => acc + curr.Completed, 0) / (recentComplaints.length || 1)) * 100)}%
+                        </p>
+                        <p style={{ fontSize: '0.85rem', opacity: 0.9 }}>Overall issues resolved from recent activity</p>
+                    </div>
+
+                    <div className="card" style={{ padding: '24px' }}>
+                        <h3 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--primary)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Clock size={16} /> Volume Summary
+                        </h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Total Completed</span>
+                            <span style={{ fontWeight: '700', color: '#10b981' }}>{chartData.reduce((acc, curr) => acc + curr.Completed, 0)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Total Pending</span>
+                            <span style={{ fontWeight: '700', color: '#fbbf24' }}>{chartData.reduce((acc, curr) => acc + curr.Pending, 0)}</span>
+                        </div>
+                        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: '800', fontSize: '0.85rem' }}>Total Volume</span>
+                            <span style={{ fontWeight: '800' }}>{recentComplaints.length}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="card" style={{ marginTop: '32px', padding: '24px' }}>
@@ -213,13 +257,13 @@ const UserDashboard = () => {
                                         fontWeight: '700',
                                         padding: '4px 8px',
                                         borderRadius: '4px',
-                                        backgroundColor: c.status === 'Completed' || c.status === 'completed' ? '#dcfce7' : 
-                                                      c.status === 'Pending' || c.status === 'pending' ? '#fef9c3' : 
-                                                      c.status === 'Active' || c.status === 'active' ? '#dbeafe' : '#fee2e2',
-                                        color: c.status === 'Completed' || c.status === 'completed' ? '#166534' : 
-                                              c.status === 'Pending' || c.status === 'pending' ? '#854d0e' : 
-                                              c.status === 'Active' || c.status === 'active' ? '#1e40af' : '#991b1b'
-                                    }}>{c.status.toUpperCase()}</span>
+                                        backgroundColor: c.status === 'Completed' || c.status === 'completed' || c.status === 'Resolved' || c.status === 'resolved' ? '#dcfce7' :
+                                            c.status === 'Pending' || c.status === 'pending' ? '#fef9c3' :
+                                                c.status === 'Active' || c.status === 'active' ? '#dbeafe' : '#fee2e2',
+                                        color: c.status === 'Completed' || c.status === 'completed' || c.status === 'Resolved' || c.status === 'resolved' ? '#166534' :
+                                            c.status === 'Pending' || c.status === 'pending' ? '#854d0e' :
+                                                c.status === 'Active' || c.status === 'active' ? '#1e40af' : '#991b1b'
+                                    }}>{c.status.toLowerCase() === 'resolved' ? 'COMPLETED' : c.status.toUpperCase()}</span>
                                     <ChevronRight size={18} color="var(--text-muted)" />
                                 </div>
                             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { fetchProperties } from '../../services/api';
 import { Search, Filter, Download, Plus } from 'lucide-react';
 import VmcDataTable from '../../components/Shared/VmcDataTable';
 
@@ -10,8 +10,19 @@ const TaxDashboard = () => {
     useEffect(() => {
         const fetchTaxData = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/admin/tax');
-                setRecords(response.data);
+                const data = await fetchProperties();
+                const formattedData = data.map((item, index) => ({
+                    sno: index + 1,
+                    customer_id: item.property_id,
+                    phone: "N/A", // Property tax record doesn't have phone in current model
+                    owner_name: item.owner_name,
+                    description: item.address,
+                    status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+                    amount: item.amount,
+                    year: item.year,
+                    id: item.property_id // For PDF download action
+                }));
+                setRecords(formattedData);
             } catch (error) {
                 console.error("Error fetching tax data:", error);
             } finally {
@@ -19,6 +30,8 @@ const TaxDashboard = () => {
             }
         };
         fetchTaxData();
+        const interval = setInterval(fetchTaxData, 5000);
+        return () => clearInterval(interval);
     }, []);
 
     return (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { fetchProperties } from '../../services/api';
 import { Search, FileText, ExternalLink } from 'lucide-react';
 
 const PropertyTax = () => {
@@ -7,28 +7,34 @@ const PropertyTax = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchTaxData = async () => {
+        const loadTaxData = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/user/property-tax');
-                setRecords(response.data);
+                const data = await fetchProperties();
+                const formattedData = data.map((record, index) => ({
+                    id: record.id,
+                    sno: index + 1,
+                    receipt_no: record.receipt_no,
+                    receipt_date: record.created_at ? new Date(record.created_at).toLocaleDateString() : 'N/A',
+                    name: record.owner_name,
+                    address: record.address,
+                    description: "Property Tax",
+                    bill_no: record.bill_no,
+                    year: record.year,
+                    amount: record.amount,
+                    customer_id: record.property_id
+                }));
+                setRecords(formattedData);
             } catch (error) {
                 console.error("Error fetching property tax data:", error);
-                // If endpoint doesn't exist, try admin endpoint
-                try {
-                    const response = await axios.get('http://localhost:8000/api/admin/tax');
-                    setRecords(response.data);
-                } catch (err) {
-                    console.error("Error fetching tax data:", err);
-                }
             } finally {
                 setLoading(false);
             }
         };
-        fetchTaxData();
+        loadTaxData();
     }, []);
 
-    const handleDownloadPdf = (id) => {
-        window.open(`http://localhost:8000/api/user/property-tax/pdf/${id}`, '_blank');
+    const handleDownloadPdf = (propertyId) => {
+        window.open(`http://localhost:8000/api/property-tax/pdf/${propertyId}`, '_blank');
     };
 
     return (
@@ -92,14 +98,14 @@ const PropertyTax = () => {
                                         <td>
                                             <button
                                                 onClick={() => handleDownloadPdf(record.id || record.customer_id)}
-                                                style={{ 
-                                                    background: 'none', 
-                                                    border: 'none', 
-                                                    color: 'var(--primary)', 
-                                                    cursor: 'pointer', 
-                                                    display: 'flex', 
-                                                    alignItems: 'center', 
-                                                    gap: '4px', 
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: 'var(--primary)',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px',
                                                     fontSize: '0.85rem',
                                                     fontWeight: '500'
                                                 }}

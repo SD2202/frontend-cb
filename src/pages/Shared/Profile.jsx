@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { fetchProperties } from '../../services/api';
 import { User, Mail, Phone, MapPin, Shield, Edit } from 'lucide-react';
 import VmcDataTable from '../../components/Shared/VmcDataTable';
 
@@ -8,19 +8,38 @@ const Profile = () => {
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // For demo, we use a mock user ID
     const MOCK_USER_ID = "1234567890";
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [profileRes, taxRes] = await Promise.all([
-                    axios.get(`http://localhost:8000/api/user/profile/${MOCK_USER_ID}`),
-                    axios.get(`http://localhost:8000/api/admin/tax`)
-                ]);
-                setProfile(profileRes.data);
-                // Filter records to show only those belonging to this user for the profile view
-                setRecords(taxRes.data.filter(r => r.owner === "John Doe"));
+                const taxData = await fetchProperties();
+
+                // Map tax data for table
+                const formattedTaxData = taxData.map((item, index) => ({
+                    sno: index + 1,
+                    customer_id: item.property_id,
+                    phone: "N/A",
+                    owner_name: item.owner_name,
+                    description: item.address,
+                    status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+                    amount: item.amount,
+                    year: item.year,
+                    id: item.property_id
+                }));
+
+                // Mock profile data
+                setProfile({
+                    user_id: MOCK_USER_ID,
+                    language: 'English',
+                    status: 'active',
+                    name: 'Admin User',
+                    role: 'Administrator'
+                });
+
+                // Filter records if needed (demo logic kept simple, showing all for now or first few)
+                setRecords(formattedTaxData.slice(0, 5));
+
             } catch (error) {
                 console.error("Error fetching profile data:", error);
             } finally {

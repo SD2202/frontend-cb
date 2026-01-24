@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { fetchProperties } from '../../services/api';
 import { Settings as SettingsIcon, Bell, Lock, Globe, Save } from 'lucide-react';
+
 import VmcDataTable from '../../components/Shared/VmcDataTable';
 
 const Settings = () => {
@@ -10,8 +11,19 @@ const Settings = () => {
     useEffect(() => {
         const fetchTaxData = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/admin/tax');
-                setRecords(response.data);
+                const data = await fetchProperties();
+                const formattedData = data.map((item, index) => ({
+                    sno: index + 1,
+                    customer_id: item.property_id,
+                    phone: "N/A",
+                    owner_name: item.owner_name,
+                    description: item.address,
+                    status: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+                    amount: item.amount,
+                    year: item.year,
+                    id: item.property_id
+                }));
+                setRecords(formattedData);
             } catch (error) {
                 console.error("Error fetching tax data:", error);
             } finally {

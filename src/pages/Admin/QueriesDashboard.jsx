@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { fetchComplaints } from '../../services/api';
 import { MessageSquare, Globe, Clock, ChevronRight, BarChart3 } from 'lucide-react';
 
 const QueriesDashboard = () => {
@@ -9,8 +9,17 @@ const QueriesDashboard = () => {
     useEffect(() => {
         const fetchQueries = async () => {
             try {
-                const response = await axios.get('http://localhost:8000/api/admin/queries');
-                setSessions(response.data);
+                const data = await fetchComplaints();
+                // Map complaints to match the UI's expected session structure temporarily
+                const activeQueries = data.map(complaint => ({
+                    user_id: complaint.login_id,
+                    language: 'EN', // Defaulting as language isn't on complaint model yet
+                    last_active: new Date(complaint.created_at).getTime() / 1000,
+                    recent_messages: [
+                        { content: `${complaint.category.replace(/_/g, ' ')} - ${complaint.sub_issue}: ${complaint.description || 'No description'}` }
+                    ]
+                }));
+                setSessions(activeQueries);
             } catch (error) {
                 console.error("Error fetching queries:", error);
             } finally {
@@ -18,7 +27,8 @@ const QueriesDashboard = () => {
             }
         };
         fetchQueries();
-        const interval = setInterval(fetchQueries, 10000);
+        fetchQueries();
+        const interval = setInterval(fetchQueries, 5000);
         return () => clearInterval(interval);
     }, []);
 
