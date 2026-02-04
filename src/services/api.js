@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_Base_URL = 'http://localhost:8000';
+const API_Base_URL = 'https://chatbot-backend-1-phyu.onrender.com';
 
 const api = axios.create({
   baseURL: API_Base_URL,
