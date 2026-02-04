@@ -5,7 +5,7 @@ const VmcDataTable = ({ data, loading, showPdf = false }) => {
     if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>Fetching secure VMC data...</div>;
 
     const handleDownloadPdf = (id) => {
-        window.open(`http://localhost:8000/api/admin/tax/pdf/${id}`, '_blank');
+       window.open(`${import.meta.env.VITE_API_URL}/api/property-tax/pdf/${propertyId}`);
     };
 
     return (
